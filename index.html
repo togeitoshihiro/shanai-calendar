@@ -1,6 +1,9 @@
 <!doctype html><html lang=ja><meta charset=utf-8>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>東迎商事 社内カレンダー</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="社内カレンダー">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
 :root{--bg:#f6f6f3;--fg:#1d1d1f;--mut:#6b6b70;--card:#fff;--line:#e2e2de;--acc:#1f3a5f;--acc2:#e8eef6;--red:#c0392b;--redbg:#fbe9e7;--y:#fff4c2;--sun:#c0392b;--sat:#2a6fb0}
 @media (prefers-color-scheme:dark){:root{--bg:#151517;--fg:#ececec;--mut:#9a9aa0;--card:#1f1f22;--line:#34343a;--acc:#9cc0ec;--acc2:#24303f;--red:#ff8a7a;--redbg:#3a1f1c;--y:#4a4320;--sun:#ff8a7a;--sat:#8fb8e8}}
@@ -108,7 +111,8 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);bord
  var q=new URLSearchParams(location.search),k=q.get('k')||'';
  if(q.get('embed'))document.documentElement.classList.add('embed'); // AIオフィスに埋め込むときは見出しを省く
  try{if(k)localStorage.setItem('calKey',k);else k=localStorage.getItem('calKey')||''}catch(e){}
- if(q.get('k')){history.replaceState(null,'',location.pathname)}
+ // ホーム画面に追加したときも開けるように、合言葉はURLに残す（ホーム画面のアプリは保存場所が別で、覚えた合言葉を読めないため）
+ if(k&&!q.get('k')){history.replaceState(null,'',location.pathname+'?k='+encodeURIComponent(k))}
  window.google={script:{get run(){var h={ok:null,ng:null};var p=new Proxy({},{get:function(t,name){
   if(name==='withSuccessHandler')return function(f){h.ok=f;return p};
   if(name==='withFailureHandler')return function(f){h.ng=f;return p};
