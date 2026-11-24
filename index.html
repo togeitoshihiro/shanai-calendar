@@ -57,13 +57,13 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);bord
 </style>
 <header>
  <div class="top"><h1>東迎商事 社内カレンダー</h1><button id="add" class="btn pri">＋ 予定を追加</button><button id="rl" class="btn">↻ 更新</button></div>
- <div class="sub">本部連絡網で決まった予定・お願いをAI秘書がここに入れます。終わったら「完了」に。予定の日が過ぎたものは自動で一覧から消えます。<span id="at"></span></div>
- <nav><button data-v="list" class="on">予定</button><button data-v="cal">カレンダー</button><button data-v="hist">AI秘書の履歴</button><button data-v="rules">AI秘書への指示</button></nav>
+ <div class="sub">本部連絡網で決まった予定・お願いをAI秘書がここに入れます。終わったら「完了」に。予定の日が過ぎたものと、本部連絡網で終わったと分かったものは自動で完了になります。<span id="at"></span></div>
+ <nav><button data-v="cal" class="on">カレンダー</button><button data-v="list">予定</button><button data-v="hist">AI秘書の履歴</button><button data-v="rules">AI秘書への指示</button></nav>
  <div class="who" id="who"></div>
 </header>
 <main>
-<section id="v-list"><div id="list"></div></section>
-<section id="v-cal" hidden><div class="calh"><button id="pm" class="btn sm">‹ 前の月</button><div class="m" id="calm"></div><button id="tm" class="btn sm">今月</button><button id="nm" class="btn sm">次の月 ›</button></div><div id="cal"></div><div id="calday"></div></section>
+<section id="v-list" hidden><div id="list"></div></section>
+<section id="v-cal"><div class="calh"><button id="pm" class="btn sm">‹ 前の月</button><div class="m" id="calm"></div><button id="tm" class="btn sm">今月</button><button id="nm" class="btn sm">次の月 ›</button></div><div id="cal"></div><div id="calday"></div></section>
 <section id="v-hist" hidden><input type="search" id="q" placeholder="キーワードで絞り込み（例：請求書、さいたま、免許証）"><div id="hist"></div></section>
 <section id="v-rules" hidden><div id="rules"></div></section>
 <div id="msg" class="empty">読み込み中…</div>
@@ -105,7 +105,7 @@ const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<
 const WD='日月火水木金土',PEOPLE=['東迎','広瀬','中川','坂西','赤倉','野嶋','一真'];
 const boss=s=>String(s||'').replace(/東迎(?!商事)(俊弘)?(さん|社長)?/g,'東迎社長');
 const stor={get(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
-let D=null,IT=[],view='list',who=stor.get('who'),calBase=new Date(),calSel=new Date().toDateString(),cur=null;
+let D=null,IT=[],view='cal',who=stor.get('who'),calBase=new Date(),calSel=new Date().toDateString(),cur=null;
 const today0=()=>{const n=new Date();n.setHours(0,0,0,0);return n};
 const diff=d=>Math.round((d-today0())/864e5);
 const ymd=d=>d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:'';
@@ -223,7 +223,11 @@ $('f').onsubmit=e=>{e.preventDefault();const f=$('f'),F=FF();
  run('saveItem',[{row:editing?editing.row:'',by:F.by.value==='東迎'?'東迎俊弘':F.by.value,title,date:F.date.value,time:F.time.value,end:F.end.value,to:F.to.value,place:F.place.value,memo:F.memo.value}],$('fs'),()=>$('df').close())};
 $('fdel').onclick=()=>{if(!editing||!confirm('「'+editing.title+'」を取り消しますか？（一覧とカレンダーから消えます）'))return;
  run('cancelItem',[editing.row,stor.get('me')],$('fdel'),()=>$('df').close())};
-function setData(d){D=d;IT=d.items.map(norm);$('msg').hidden=true;$('at').textContent='（'+d.at+' 時点）';draw()}
+let autoBusy=false;
+function setData(d){D=d;IT=d.items.map(norm);$('msg').hidden=true;$('at').textContent='（'+d.at+' 時点）';draw();
+ // 予定の日が過ぎたもの（「〜まで」の締切は除く）は、シートでも自動で「対応済み」にする
+ const past=IT.filter(x=>state(x)==='past'&&!x.closed).map(x=>x.row);
+ if(past.length&&!autoBusy){autoBusy=true;google.script.run.withSuccessHandler(r=>{autoBusy=false;setData(r)}).withFailureHandler(()=>{autoBusy=false}).autoDone(past)}}
 function load(){if($('df').open)return;$('rl').disabled=true;
  google.script.run.withSuccessHandler(d=>{$('rl').disabled=false;setData(d)}).withFailureHandler(e=>{$('rl').disabled=false;$('msg').hidden=false;$('msg').innerHTML='<span class=err>読み込めませんでした：'+esc(e.message)+'</span>'}).getData()}
 $('rl').onclick=load;load();setInterval(load,60000);
