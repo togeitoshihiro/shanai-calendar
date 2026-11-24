@@ -42,6 +42,13 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px;margin:20px 0 8px
 .ch{display:block;font-size:11px;line-height:1.35;padding:1px 4px;margin-bottom:2px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--acc2);cursor:pointer}
 .ch.due{background:var(--y)}.ch.late{background:var(--red);color:#fff}.ch.closed{background:transparent;color:var(--mut);text-decoration:line-through}.ch.past{opacity:.55}
 .more{font-size:11px;color:var(--mut)}
+.pp{display:inline-block;font-size:12px;font-weight:700;padding:0 8px;border-radius:999px;color:#fff;margin-right:4px;line-height:1.7;vertical-align:1px}
+.kind{display:inline-block;font-size:11.5px;padding:0 7px;border-radius:6px;border:1px solid var(--line);color:var(--mut);margin-right:6px;line-height:1.6;vertical-align:1px}
+.kind.k-due{border-color:#d4a017;color:#a07800}.kind.k-task{border-style:dashed}
+.ch{border-left:4px solid var(--mut)}.ch b{font-weight:700}
+.who button{border-left-width:6px}
+.card .head{margin-bottom:2px}
+
 @media (max-width:600px){.cal .cd{min-height:56px}.cal .ch{font-size:0;height:6px;padding:0}.when{flex-basis:62px}}
 /* ダイアログ */
 dialog{border:0;border-radius:12px;padding:16px;width:min(560px,94vw);background:var(--bg);color:var(--fg);box-shadow:0 10px 40px rgba(0,0,0,.3)}dialog::backdrop{background:rgba(0,0,0,.35)}
@@ -103,6 +110,13 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);bord
 window.onerror=(m,u,l,c,er)=>{const e=document.getElementById('msg');if(e){e.hidden=false;e.innerHTML='<span class=err>画面のエラー：'+String(m+' '+(er&&er.stack||'')).replace(/</g,'&lt;')+'（'+l+'行）</span><pre style="white-space:pre-wrap;font-size:11px">'+String(document.getElementById('f').innerHTML).replace(/</g,'&lt;').slice(0,1500)+'</pre>'}};
 const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const WD='日月火水木金土',PEOPLE=['東迎','広瀬','中川','坂西','赤倉','野嶋','一真'];
+// 担当者ごとの色（カレンダーの線・名前の札・絞り込みボタンで同じ色）
+const PCOL={'東迎':'#c0392b','広瀬':'#e67e22','中川':'#b7950b','坂西':'#27ae60','赤倉':'#16a085','野嶋':'#2980b9','一真':'#8e44ad','全員':'#7f8c8d'};
+const pname=k=>k==='東迎'?'東迎社長':k==='全員'?'全員':k+'さん';
+// だれの件か：担当（なければ依頼した人）から名前を拾う。「皆さん」「全員」は全員
+function owners(x){const s=x.to||x.from||x.by||'';if(/皆さん|全員/.test(s))return ['全員'];const o=PEOPLE.filter(n=>s.includes(n)||(n==='一真'&&/高橋\s*一真/.test(s)));return o.length?o:['全員']}
+const pills=x=>owners(x).map(k=>`<span class="pp" style="background:${PCOL[k]}">${pname(k)}</span>`).join('');
+const kindOf=x=>!x.date?['task','やること']:x.due?['due','締切']:['ev','予定'];
 const boss=s=>String(s||'').replace(/東迎(?!商事)(俊弘)?(さん|社長)?/g,'東迎社長');
 const stor={get(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 let D=null,IT=[],view='cal',who=stor.get('who'),calBase=new Date(),calSel=new Date().toDateString(),cur=null;
@@ -141,8 +155,9 @@ function whenBox(x){if(!x.date)return '<div class="when none">日付なし</div>
 function card(x){const s=state(x);
  const tag=x.cancel?'<span class=tag>取消</span>':x.closed?'<span class=tag>完了</span>':s==='late'?'<span class="tag late">期限すぎ</span>':x.due?'<span class="tag due">締切</span>':'';
  return `<div class="card ${s==='late'?'late':''} ${x.closed?'closed':''}" data-row="${x.row}">${whenBox(x)}<div class=body>
+ <div class=head>${pills(x)}<span class="kind k-${kindOf(x)[0]}">${kindOf(x)[1]}</span></div>
  <div class=t>${esc(x.title)}${tag}</div>
- <div class=info>${x.to?`<span><span class=k>担当</span>${esc(x.to)}</span>`:''}${x.place?`<span><span class=k>場所</span>${esc(x.place)}</span>`:''}${x.from&&x.from!==x.to?`<span><span class=k>依頼</span>${esc(x.from)}</span>`:''}</div>
+ <div class=info>${x.place?`<span><span class=k>場所</span>${esc(x.place)}</span>`:''}${x.from&&x.from!==x.to?`<span><span class=k>依頼</span>${esc(x.from)}</span>`:''}</div>
  ${x.memo?`<div class=memo>${esc(x.memo)}</div>`:''}<div class=meta>登録 ${esc(x.reg)}${x.doneAt?'　'+(x.cancel?'取消':'完了')+' '+esc(x.doneAt):''}</div></div>
  <div class=side>${x.cancel?'':`<label class=chk><input type=checkbox data-row="${x.row}" ${x.closed?'checked':''}>完了</label>`}<button class="btn sm" data-edit="${x.row}">編集</button></div></div>`}
 // ===== 予定（一覧） =====
@@ -168,7 +183,7 @@ function drawCal(){const Y=calBase.getFullYear(),M=calBase.getMonth(),first=new 
  $('calm').textContent=`${Y}年${M+1}月`;const by={};
  IT.filter(mine).forEach(x=>{if(!x.date||x.cancel)return;const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const k=d.toDateString();(by[k]=by[k]||[]).push(x)}});
  Object.values(by).forEach(a=>a.sort((p,q)=>(p.closed-q.closed)||(tkey(p.time)-tkey(q.time))));
- const chip=x=>{const s=state(x);return `<span class="ch ${x.closed?'closed':s==='late'?'late':x.due?'due':''} ${s==='past'?'past':''}" data-row="${x.row}" title="${esc(x.title)}">${x.time?esc(x.time)+' ':''}${esc(x.title)}</span>`};
+ const chip=x=>{const s=state(x);return `<span class="ch ${x.closed?'closed':s==='late'?'late':x.due?'due':''} ${s==='past'?'past':''}" data-row="${x.row}" style="border-left-color:${PCOL[owners(x)[0]]}" title="${esc(owners(x).map(pname).join('・')+'：'+x.title)}"><b>${esc(owners(x).map(k=>k==='東迎'?'社長':k).join('・'))}</b> ${x.due?'締切 ':''}${x.time?esc(x.time)+' ':''}${esc(x.title)}</span>`};
  const td=new Date().toDateString();let h=[...WD].map((w,i)=>`<div class="wd${i===0?' su':i===6?' sa':''}">${w}</div>`).join('');
  for(let i=0;i<weeks*7;i++){const d=new Date(Y,M,1-first.getDay()+i),k=d.toDateString(),l=by[k]||[];
   h+=`<div class="cd${d.getMonth()!==M?' out':''}${k===td?' today':''}${k===calSel?' sel':''}" data-day="${k}"><div class=dn><span>${d.getDate()}</span></div>${l.slice(0,4).map(chip).join('')}${l.length>4?`<div class=more>ほか${l.length-4}件</div>`:''}</div>`}
@@ -180,7 +195,7 @@ function drawHist(){const q=$('q').value.trim();let l='',h='';
  D.hist.filter(r=>!q||r.join(' ').includes(q)).forEach(r=>{const[d,tm]=String(r[0]).split(' ');if(d!==l){h+=`<div class=day>${esc(d)}</div>`;l=d}h+=`<div class=row><div class=meta>${esc(tm||'')}</div><div>${esc(boss(r[2]))}<div class=g>${esc(r[1])}</div></div></div>`});
  $('hist').innerHTML=h||'<div class=empty>該当なし</div>'}
 function drawRules(){let l='',h='';D.rules.forEach(r=>{if(r[0]!==l){h+=`<div class=cat>${esc(r[0])}</div>`;l=r[0]}h+=`<div class=rule>${esc(r[1])}<div class=meta>${esc(r[2])}</div></div>`});$('rules').innerHTML=h||'<div class=empty>まだありません</div>'}
-function drawWho(){$('who').hidden=!(view==='list'||view==='cal');$('who').innerHTML=['',...PEOPLE].map(n=>`<button data-n="${n}" class="${n===who?'on':''}">${n?boss(n)+(n==='東迎'?'':'さん'):'全員'}</button>`).join('')}
+function drawWho(){$('who').hidden=!(view==='list'||view==='cal');$('who').innerHTML=['',...PEOPLE].map(n=>`<button data-n="${n}" class="${n===who?'on':''}" style="border-left-color:${n?PCOL[n]:'var(--line)'}">${n?boss(n)+(n==='東迎'?'':'さん'):'全員'}</button>`).join('')}
 function draw(){drawWho();drawList();drawCal();drawHist();drawRules()}
 // ===== 操作 =====
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.v;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));['list','cal','hist','rules'].forEach(v=>$('v-'+v).hidden=v!==view);drawWho()});
