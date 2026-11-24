@@ -42,6 +42,18 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px;margin:20px 0 8px
 .ch{display:block;font-size:11px;line-height:1.35;padding:1px 4px;margin-bottom:2px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--acc2);cursor:pointer}
 .ch.due{background:var(--y)}.ch.late{background:var(--red);color:#fff}.ch.closed{background:transparent;color:var(--mut);text-decoration:line-through}.ch.past{opacity:.55}
 .more{font-size:11px;color:var(--mut)}
+/* 週表示：1日の予定を全部読める形 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}.seg button{border:0;background:var(--card);color:var(--fg);padding:5px 16px;font-size:14px;cursor:pointer}.seg button.on{background:var(--acc);color:var(--bg);font-weight:700}
+.wk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.wkd{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;min-height:140px;min-width:0}
+.wkd.today{border:2px solid var(--acc)}.wkd .wh{font-weight:700;font-size:13.5px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline}
+.wkd .wh .su{color:var(--sun)}.wkd .wh .sa{color:var(--sat)}.wkd .wh .add{border:0;background:none;color:var(--mut);font-size:16px;cursor:pointer;padding:0 2px}
+.wk .ch{white-space:normal;font-size:12.5px;line-height:1.45;padding:4px 6px;margin-bottom:5px;border-left-width:5px;border-radius:6px}
+.wk .ch .tm{display:block;font-size:11.5px;color:var(--mut);font-weight:700}.wk .ch.late .tm{color:#fff}
+.wk .ch .pp{font-size:11px;padding:0 6px;margin:0 3px 2px 0}
+.wk .none{color:var(--mut);font-size:12px}
+@media (max-width:760px){.wk{grid-template-columns:1fr}.wkd{min-height:0}.wkd .wh{font-size:15px}.wk .ch{font-size:14px}}
+
 .pp{display:inline-block;font-size:12px;font-weight:700;padding:0 8px;border-radius:999px;color:#fff;margin-right:4px;line-height:1.7;vertical-align:1px}
 .kind{display:inline-block;font-size:11.5px;padding:0 7px;border-radius:6px;border:1px solid var(--line);color:var(--mut);margin-right:6px;line-height:1.6;vertical-align:1px}
 .kind.k-due{border-color:#d4a017;color:#a07800}.kind.k-task{border-style:dashed}
@@ -70,7 +82,7 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);bord
 </header>
 <main>
 <section id="v-list" hidden><div id="list"></div></section>
-<section id="v-cal"><div class="calh"><button id="pm" class="btn sm">‹ 前の月</button><div class="m" id="calm"></div><button id="tm" class="btn sm">今月</button><button id="nm" class="btn sm">次の月 ›</button></div><div id="cal"></div><div id="calday"></div></section>
+<section id="v-cal"><div class="calh"><div class="seg" id="cmode"><button data-cm="week">週</button><button data-cm="month">月</button></div><button id="pm" class="btn sm">‹ 前</button><div class="m" id="calm"></div><button id="tm" class="btn sm">今日</button><button id="nm" class="btn sm">次 ›</button></div><div id="cal"></div><div id="calday"></div></section>
 <section id="v-hist" hidden><input type="search" id="q" placeholder="キーワードで絞り込み（例：請求書、さいたま、免許証）"><div id="hist"></div></section>
 <section id="v-rules" hidden><div id="rules"></div></section>
 <div id="msg" class="empty">読み込み中…</div>
@@ -119,6 +131,7 @@ const pills=x=>owners(x).map(k=>`<span class="pp" style="background:${PCOL[k]}">
 const kindOf=x=>!x.date?['task','やること']:x.due?['due','締切']:['ev','予定'];
 const boss=s=>String(s||'').replace(/東迎(?!商事)(俊弘)?(さん|社長)?/g,'東迎社長');
 const stor={get(k){try{return localStorage.getItem(k)||''}catch(e){return ''}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let calMode=stor.get('calMode')||'week';
 let D=null,IT=[],view='cal',who=stor.get('who'),calBase=new Date(),calSel=new Date().toDateString(),cur=null;
 const today0=()=>{const n=new Date();n.setHours(0,0,0,0);return n};
 const diff=d=>Math.round((d-today0())/864e5);
@@ -179,10 +192,20 @@ function drawList(){const L=IT.filter(mine),g={late:[],today:[],tom:[],week:[],l
  if(g.old.length)h+=`<details><summary>2週間以上前に登録された日付なしのやること（${g.old.length}件）— 終わっていれば「完了」に</summary>${g.old.map(card).join('')}</details>`;
  $('list').innerHTML=h}
 // ===== カレンダー =====
-function drawCal(){const Y=calBase.getFullYear(),M=calBase.getMonth(),first=new Date(Y,M,1),weeks=Math.ceil((first.getDay()+new Date(Y,M+1,0).getDate())/7);
- $('calm').textContent=`${Y}年${M+1}月`;const by={};
- IT.filter(mine).forEach(x=>{if(!x.date||x.cancel)return;const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const k=d.toDateString();(by[k]=by[k]||[]).push(x)}});
- Object.values(by).forEach(a=>a.sort((p,q)=>(p.closed-q.closed)||(tkey(p.time)-tkey(q.time))));
+// 日ごとの予定（取消は除く。対応中を上、時間の早い順）
+function byDay(){const by={};IT.filter(mine).forEach(x=>{if(!x.date||x.cancel)return;const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const k=d.toDateString();(by[k]=by[k]||[]).push(x)}});
+ Object.values(by).forEach(a=>a.sort((p,q)=>(p.closed-q.closed)||(tkey(p.time)-tkey(q.time))));return by}
+// 週表示：日曜〜土曜の7日を並べ、その日の予定を全部（省略せずに）出す
+function drawWeek(){const by=byDay(),s0=new Date(calBase.getFullYear(),calBase.getMonth(),calBase.getDate()-calBase.getDay()),s6=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
+ $('calm').textContent=`${s0.getMonth()+1}/${s0.getDate()}〜${s6.getMonth()+1}/${s6.getDate()}`;
+ const td=new Date().toDateString();let h='';
+ for(let i=0;i<7;i++){const d=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+i),k=d.toDateString(),l=by[k]||[];
+  h+=`<div class="wkd${k===td?' today':''}"><div class=wh><span class="${i===0?'su':i===6?'sa':''}">${k===td?'今日 ':''}${d.getMonth()+1}/${d.getDate()}(${WD[i]})</span><button class=add data-addday="${ymd(d)}" title="この日に追加">＋</button></div>`+
+   (l.length?l.map(x=>{const st=state(x);return `<div class="ch ${x.closed?'closed':st==='late'?'late':x.due?'due':''}" data-row="${x.row}" style="border-left-color:${PCOL[owners(x)[0]]}">${(x.time||x.due)?`<span class=tm>${x.due?'締切 ':''}${esc(x.time||'')}</span>`:''}${pills(x)}${esc(x.title)}${x.place?`<span class=tm>＠${esc(x.place)}</span>`:''}</div>`}).join(''):'<div class=none>予定なし</div>')+'</div>'}
+ $('cal').innerHTML=`<div class=wk>${h}</div>`;$('calday').innerHTML=''}
+function drawCal(){document.querySelectorAll('#cmode button').forEach(b=>b.classList.toggle('on',b.dataset.cm===calMode));if(calMode==='week')return drawWeek();
+ const Y=calBase.getFullYear(),M=calBase.getMonth(),first=new Date(Y,M,1),weeks=Math.ceil((first.getDay()+new Date(Y,M+1,0).getDate())/7);
+ $('calm').textContent=`${Y}年${M+1}月`;const by=byDay();
  const chip=x=>{const s=state(x);return `<span class="ch ${x.closed?'closed':s==='late'?'late':x.due?'due':''} ${s==='past'?'past':''}" data-row="${x.row}" style="border-left-color:${PCOL[owners(x)[0]]}" title="${esc(owners(x).map(pname).join('・')+'：'+x.title)}"><b>${esc(owners(x).map(k=>k==='東迎'?'社長':k).join('・'))}</b> ${x.due?'締切 ':''}${x.time?esc(x.time)+' ':''}${esc(x.title)}</span>`};
  const td=new Date().toDateString();let h=[...WD].map((w,i)=>`<div class="wd${i===0?' su':i===6?' sa':''}">${w}</div>`).join('');
  for(let i=0;i<weeks*7;i++){const d=new Date(Y,M,1-first.getDay()+i),k=d.toDateString(),l=by[k]||[];
@@ -201,8 +224,9 @@ function draw(){drawWho();drawList();drawCal();drawHist();drawRules()}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.v;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));['list','cal','hist','rules'].forEach(v=>$('v-'+v).hidden=v!==view);drawWho()});
 $('who').onclick=e=>{const b=e.target.closest('button');if(!b)return;who=b.dataset.n;stor.set('who',who);draw()};
 $('q').oninput=drawHist;
-$('pm').onclick=()=>{calBase=new Date(calBase.getFullYear(),calBase.getMonth()-1,1);drawCal()};
-$('nm').onclick=()=>{calBase=new Date(calBase.getFullYear(),calBase.getMonth()+1,1);drawCal()};
+$('pm').onclick=()=>{calBase=calMode==='week'?new Date(calBase.getFullYear(),calBase.getMonth(),calBase.getDate()-7):new Date(calBase.getFullYear(),calBase.getMonth()-1,1);drawCal()};
+$('nm').onclick=()=>{calBase=calMode==='week'?new Date(calBase.getFullYear(),calBase.getMonth(),calBase.getDate()+7):new Date(calBase.getFullYear(),calBase.getMonth()+1,1);drawCal()};
+$('cmode').onclick=e=>{const b=e.target.closest('[data-cm]');if(!b)return;calMode=b.dataset.cm;stor.set('calMode',calMode);calBase=new Date();drawCal()};
 $('tm').onclick=()=>{calBase=new Date();calSel=new Date().toDateString();drawCal()};
 const byRow=row=>IT.find(x=>String(x.row)===String(row));
 function run(fn,args,btn,ok){if(btn)btn.disabled=true;google.script.run.withSuccessHandler(d=>{if(btn)btn.disabled=false;setData(d);ok&&ok()}).withFailureHandler(e=>{if(btn)btn.disabled=false;alert('保存できませんでした：'+e.message)})[fn](...args)}
