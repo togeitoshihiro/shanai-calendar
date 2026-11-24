@@ -42,6 +42,7 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px;margin:20px 0 8px
 .ch{display:block;font-size:11px;line-height:1.35;padding:1px 4px;margin-bottom:2px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--acc2);cursor:pointer}
 .ch.due{background:var(--y)}.ch.late{background:var(--red);color:#fff}.ch.closed{background:transparent;color:var(--mut);text-decoration:line-through}.ch.past{opacity:.55}
 .more{font-size:11px;color:var(--mut)}
+.embed h1,.embed .sub{display:none}.embed header{padding-top:6px}.embed .top{justify-content:flex-end}
 /* 週表示：1日の予定を全部読める形 */
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}.seg button{border:0;background:var(--card);color:var(--fg);padding:5px 16px;font-size:14px;cursor:pointer}.seg button.on{background:var(--acc);color:var(--bg);font-weight:700}
 .wk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
@@ -105,6 +106,7 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--line);bord
  if(window.google&&google.script&&google.script.run)return;
  var API='https://script.google.com/macros/s/AKfycbxTgS2ZGAAtvYjAAXHrVjds1KKJaKnzD4Z5DWkCHLdxklG3vBwpUqUjNDH2Eto6sCJp/exec';
  var q=new URLSearchParams(location.search),k=q.get('k')||'';
+ if(q.get('embed'))document.documentElement.classList.add('embed'); // AIオフィスに埋め込むときは見出しを省く
  try{if(k)localStorage.setItem('calKey',k);else k=localStorage.getItem('calKey')||''}catch(e){}
  if(q.get('k')){history.replaceState(null,'',location.pathname)}
  window.google={script:{get run(){var h={ok:null,ng:null};var p=new Proxy({},{get:function(t,name){
