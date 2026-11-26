@@ -56,6 +56,8 @@ details summary{cursor:pointer;color:var(--mut);font-size:14px;margin:20px 0 8px
 .wk .ch .tm{display:block;font-size:11.5px;color:var(--mut);font-weight:700}.wk .ch.late .tm{color:#fff}
 .wk .ch .pp{font-size:11px;padding:0 6px;margin:0 3px 2px 0}
 .wk .none{color:var(--mut);font-size:12px}
+.wkd.today .wh{background:var(--acc);margin:-6px -6px 8px;padding:7px 9px;border-radius:8px 8px 0 0}.wkd.today .wh span,.wkd.today .wh .add{color:var(--bg)!important}
+.wkpast{grid-column:1/-1}.wkpast summary{cursor:pointer;color:var(--mut);font-size:13.5px;padding:8px 2px}.wkpast .wkd{margin-bottom:6px}
 @media (max-width:760px){.wk{grid-template-columns:1fr}.wkd{min-height:0}.wkd .wh{font-size:15px}.wk .ch{font-size:14px}}
 
 .pp{display:inline-block;font-size:12px;font-weight:700;padding:0 8px;border-radius:999px;color:#fff;margin-right:4px;line-height:1.7;vertical-align:1px}
@@ -205,11 +207,16 @@ const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const 
 // 週表示：日曜〜土曜の7日を並べ、その日の予定を全部（省略せずに）出す
 function drawWeek(){const by=byDay(),s0=new Date(calBase.getFullYear(),calBase.getMonth(),calBase.getDate()-calBase.getDay()),s6=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
  $('calm').textContent=`${s0.getMonth()+1}/${s0.getDate()}〜${s6.getMonth()+1}/${s6.getDate()}`;
- const td=new Date().toDateString();let h='';
- for(let i=0;i<7;i++){const d=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+i),k=d.toDateString(),l=by[k]||[];
+ const td=new Date().toDateString();let h='',days=[],ti=-1;
+ for(let i=0;i<7;i++){const d=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+i),k=d.toDateString(),l=by[k]||[];if(k===td)ti=i;h='';
   h+=`<div class="wkd${k===td?' today':''}"><div class=wh><span class="${i===0?'su':i===6?'sa':''}">${k===td?'今日 ':''}${d.getMonth()+1}/${d.getDate()}(${WD[i]})</span><button class=add data-addday="${ymd(d)}" title="この日に追加">＋</button></div>`+
-   (l.length?l.map(x=>{const st=state(x);return `<div class="ch ${x.closed?'closed':st==='late'?'late':x.due?'due':''}" data-row="${x.row}" style="border-left-color:${PCOL[owners(x)[0]]}">${(x.time||x.due)?`<span class=tm>${x.due?'締切 ':''}${esc(x.time||'')}</span>`:''}${pills(x)}${esc(x.title)}${x.place?`<span class=tm>＠${esc(x.place)}</span>`:''}</div>`}).join(''):'<div class=none>予定なし</div>')+'</div>'}
+   (l.length?l.map(x=>{const st=state(x);return `<div class="ch ${x.closed?'closed':st==='late'?'late':x.due?'due':''}" data-row="${x.row}" style="border-left-color:${PCOL[owners(x)[0]]}">${(x.time||x.due)?`<span class=tm>${x.due?'締切 ':''}${esc(x.time||'')}</span>`:''}${pills(x)}${esc(x.title)}${x.place?`<span class=tm>＠${esc(x.place)}</span>`:''}</div>`}).join(''):'<div class=none>予定なし</div>')+'</div>';days.push(h)}
+ // スマホ（縦1列）では今日を一番上に。今週のすぎた日は下に折りたたむ（2026-11-26 広瀬さん「スマホだと今日のタスクが分かりにくい」）
+ if(ti>0&&matchMedia('(max-width:760px)').matches){const a=new Date(s0),b=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+ti-1);
+  h=days.slice(ti).join('')+`<details class=wkpast><summary>この週のすぎた日（${a.getMonth()+1}/${a.getDate()}〜${b.getMonth()+1}/${b.getDate()}）を見る</summary>${days.slice(0,ti).join('')}</details>`}
+ else h=days.join('');
  $('cal').innerHTML=`<div class=wk>${h}</div>`;$('calday').innerHTML=''}
+try{matchMedia('(max-width:760px)').addEventListener('change',()=>{if(calMode==='week')drawCal()})}catch(e){}
 function drawCal(){document.querySelectorAll('#cmode button').forEach(b=>b.classList.toggle('on',b.dataset.cm===calMode));if(calMode==='week')return drawWeek();
  const Y=calBase.getFullYear(),M=calBase.getMonth(),first=new Date(Y,M,1),weeks=Math.ceil((first.getDay()+new Date(Y,M+1,0).getDate())/7);
  $('calm').textContent=`${Y}年${M+1}月`;const by=byDay();
