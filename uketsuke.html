@@ -1,0 +1,68 @@
+<!doctype html><html lang=ja><meta charset=utf-8>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>タスク受付</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="タスク受付">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#f6f6f3;--fg:#1d1d1f;--mut:#6b6b70;--card:#fff;--line:#e2e2de;--acc:#1f3a5f;--acc2:#e8eef6;--red:#c0392b;--ok:#2e7d32}
+@media (prefers-color-scheme:dark){:root{--bg:#151517;--fg:#ececec;--mut:#9a9aa0;--card:#1f1f22;--line:#34343a;--acc:#9cc0ec;--acc2:#24303f;--red:#ff8a7a;--ok:#8fd19e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:640px;margin:auto;padding:16px 16px 48px}
+h1{font-size:20px;margin:4px 0 2px}.sub{color:var(--mut);font-size:13px}
+textarea{width:100%;min-height:120px;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--fg);resize:vertical;margin-top:12px}
+.row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:8px 16px;border-radius:999px;font:inherit;font-size:15px;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:700;padding:10px 26px}.btn:disabled{opacity:.5}
+.btn.sm{padding:2px 12px;font-size:13px}.btn.warn{color:var(--red)}
+.msg{margin-top:10px;font-size:14px}.msg.ok{color:var(--ok)}.msg.ng{color:var(--red)}
+h2{font-size:15px;margin:26px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 0 8px}
+.card.closed{opacity:.55}.card.closed .t{text-decoration:line-through}
+.t{font-weight:600;word-break:break-word}.info{font-size:12.5px;color:var(--mut);display:flex;flex-wrap:wrap;gap:2px 12px;align-items:center;margin-top:2px}
+.st{font-size:12px;padding:0 8px;border-radius:6px;background:var(--acc2)}
+details{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}summary{cursor:pointer;font-weight:600}
+pre{white-space:pre-wrap;word-break:break-all;font:13px/1.6 -apple-system,"Hiragino Sans",sans-serif;background:var(--bg);padding:8px 10px;border-radius:8px;margin:8px 0}
+a{color:var(--acc)}
+</style>
+<main>
+<h1 id="ttl">タスク受付</h1>
+<div class="sub">社長からの依頼や、その場で増えたタスクを書いて「送る」を押すと、会社のタスクカレンダーに入ります。キーボードのマイクで話しても大丈夫です。</div>
+<textarea id="tx" placeholder="例：社長から、明日までに佐川ADの見積もりを確認してと頼まれた"></textarea>
+<div class="row"><button class="btn pri" id="go">送る</button><a id="cal" href="#" target="_blank" hidden>会社のカレンダーを見る</a></div>
+<div class="msg" id="msg"></div>
+<h2>自分が登録したもの</h2>
+<div id="list"><div class="sub">読み込み中…</div></div>
+<details id="muse"><summary>ミューズ（AI）に覚えてもらう文</summary>
+<div class="sub">次の文をそのまま自分のミューズに送ってください。以後は「社長から〇〇を頼まれた。タスクに入れて」と言うだけで登録されます。</div>
+<pre id="mtx"></pre><button class="btn sm" id="cp">文をコピー</button>
+</details>
+</main>
+<script>
+const API='https://script.google.com/macros/s/AKfycbxTgS2ZGAAtvYjAAXHrVjds1KKJaKnzD4Z5DWkCHLdxklG3vBwpUqUjNDH2Eto6sCJp/exec';
+const u=new URLSearchParams(location.search).get('u')||'';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function call(fn,args){return fetch(API,{method:'POST',body:JSON.stringify({fn:fn,args:args}),redirect:'follow'}).then(r=>r.json()).then(j=>{if(!j.ok)throw new Error(j.error||'うまくいきませんでした');return j.result})}
+function msg(t,ok){const m=$('msg');m.textContent=t;m.className='msg '+(ok?'ok':'ng')}
+function draw(d){
+ document.title=d.name+'のタスク受付';$('ttl').textContent=d.name+'のタスク受付';
+ $('cal').href=d.cal;$('cal').hidden=false;
+ $('mtx').textContent='私が仕事のタスクや、社長・ほかの人からの依頼を話したら、会社のタスク受付に登録してください。\n登録のしかた：次のURLの最後に、内容（いつ・誰が・何を、が分かる文）をURLエンコードしてつなげて開く。\n'+API+'?u='+u+'&t=\n開いた画面に「受け付けました」と出たら完了です。終わったら「タスクに入れました」とだけ返事してください。';
+ const L=d.items||[];
+ $('list').innerHTML=L.length?L.map(x=>{const closed=x.st==='対応済み'||x.st==='取消';
+  const when=x.date?(x.date.slice(5).replace(/^0/,'').replace('/0','/')+(x.time?' '+x.time:'')):'日付なし';
+  return `<div class="card${closed?' closed':''}"><div class="t">${esc(x.title||x.text)}</div><div class="info"><span>${esc(when)}</span>${x.to?`<span>担当：${esc(x.to)}</span>`:''}<span class="st">${esc(x.st||'未対応')}</span><span>登録 ${esc(String(x.at).slice(5))}</span>${!closed&&x.row?`<button class="btn sm warn" data-row="${x.row}">取消</button>`:''}</div></div>`}).join(''):'<div class="sub">まだありません</div>';
+}
+function load(){if(!u){$('list').innerHTML='<div class="msg ng">自分専用のURLで開いてください</div>';$('go').disabled=true;return}
+ call('me',[u]).then(draw).catch(e=>{$('list').innerHTML='';msg(e.message,false);$('go').disabled=true})}
+$('go').onclick=()=>{const t=$('tx').value.trim();if(!t){msg('内容を書いてください',false);return}
+ $('go').disabled=true;msg('送っています…',true);
+ call('send',[u,t]).then(d=>{$('tx').value='';msg('受け付けました。カレンダーに入りました（AI秘書が日付・担当を整えます）',true);draw(d)})
+ .catch(e=>msg(e.message+'（電波のよいところでもう一度押してください）',false)).finally(()=>{$('go').disabled=false})};
+$('list').onclick=e=>{const b=e.target.closest('[data-row]');if(!b)return;b.disabled=true;
+ call('cancelMine',[u,Number(b.dataset.row)]).then(d=>{msg('取り消しました',true);draw(d)}).catch(e=>{msg(e.message,false);b.disabled=false})};
+$('cp').onclick=()=>{navigator.clipboard.writeText($('mtx').textContent).then(()=>{$('cp').textContent='コピーしました'},()=>{})};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&u)load()});
+load();
+</script>
