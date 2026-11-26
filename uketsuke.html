@@ -14,7 +14,7 @@ textarea{width:100%;min-height:120px;font:inherit;font-size:16px;padding:10px 12
 .row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .btn{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:8px 16px;border-radius:999px;font:inherit;font-size:15px;cursor:pointer}
 .btn.pri{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:700;padding:10px 26px}.btn:disabled{opacity:.5}
-.btn.sm{padding:2px 12px;font-size:13px}.btn.warn{color:var(--red)}
+.btn.sm{padding:2px 12px;font-size:13px}.btn.warn{color:var(--red)}.btn.done{color:var(--ok)}
 .msg{margin-top:10px;font-size:14px}.msg.ok{color:var(--ok)}.msg.ng{color:var(--red)}
 h2{font-size:15px;margin:26px 0 8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 0 8px}
@@ -27,14 +27,16 @@ a{color:var(--acc)}
 </style>
 <main>
 <h1 id="ttl">タスク受付</h1>
-<div class="sub">社長からの依頼や、その場で増えたタスクを書いて「送る」を押すと、会社のタスクカレンダーに入ります。キーボードのマイクで話しても大丈夫です。</div>
+<div class="sub">社長からの依頼や、その場で増えたタスクを書いて「送る」を押すと、会社のタスクカレンダーに入ります。キーボードのマイクで話しても大丈夫です。終わったタスクは、下の一覧の「完了」を押してください（「完了：〇〇」と書いて送っても完了報告になります）。</div>
 <textarea id="tx" placeholder="例：社長から、明日までに佐川ADの見積もりを確認してと頼まれた"></textarea>
 <div class="row"><button class="btn pri" id="go">送る</button><a id="cal" href="#" target="_blank" hidden>会社のカレンダーを見る</a></div>
 <div class="msg" id="msg"></div>
+<h2>自分が担当のもの（まだ終わっていないもの）</h2>
+<div id="asg"><div class="sub">読み込み中…</div></div>
 <h2>自分が登録したもの</h2>
 <div id="list"><div class="sub">読み込み中…</div></div>
 <details id="muse"><summary>ミューズ（AI）に覚えてもらう文</summary>
-<div class="sub">次の文をそのまま自分のミューズに送ってください。以後は「社長から〇〇を頼まれた。タスクに入れて」と言うだけで登録されます。</div>
+<div class="sub">次の文をそのまま自分のミューズに送ってください。以後は「社長から〇〇を頼まれた。タスクに入れて」と言うだけで登録され、「〇〇終わった。完了にして」と言えば完了報告になります。</div>
 <pre id="mtx"></pre><button class="btn sm" id="cp">文をコピー</button>
 </details>
 </main>
@@ -45,22 +47,29 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function call(fn,args){return fetch(API,{method:'POST',body:JSON.stringify({fn:fn,args:args}),redirect:'follow'}).then(r=>r.json()).then(j=>{if(!j.ok)throw new Error(j.error||'うまくいきませんでした');return j.result})}
 function msg(t,ok){const m=$('msg');m.textContent=t;m.className='msg '+(ok?'ok':'ng')}
+function card(x,mine){const closed=x.st==='対応済み'||x.st==='取消'||x.report;
+ const when=x.date?(x.date.slice(5).replace(/^0/,'').replace('/0','/')+(x.time?' '+x.time:'')):'日付なし';
+ const btn=!closed&&x.row?`<button class="btn sm done" data-done="${x.row}">完了</button>`+(mine?`<button class="btn sm warn" data-row="${x.row}">取消</button>`:''):'';
+ return `<div class="card${closed&&!x.report?' closed':''}"><div class="t">${esc(x.title||x.text)}</div><div class="info">${x.report?'':`<span>${esc(when)}</span>`}${x.to?`<span>担当：${esc(x.to)}</span>`:''}${x.by&&!mine?`<span>登録：${esc(x.by)}</span>`:''}<span class="st">${esc(x.st||'未対応')}</span>${x.at?`<span>登録 ${esc(String(x.at).slice(5))}</span>`:''}${btn}</div></div>`}
 function draw(d){
  document.title=d.name+'のタスク受付';$('ttl').textContent=d.name+'のタスク受付';
  $('cal').href=d.cal;$('cal').hidden=false;
- $('mtx').textContent='私が仕事のタスクや、社長・ほかの人からの依頼を話したら、会社のタスク受付に登録してください（'+d.name+'の受付です）。\n登録のしかた（どちらか）：\n1. 次のURLの最後に、内容（いつ・誰が・何を、が分かる文）をURLエンコードしてつなげて開く（GET）\n'+API+'?u='+u+'&t=\n2. 同じURL（?より前）へ、本文 {"fn":"send","args":["'+u+'","内容"]} を Content-Type: text/plain でPOSTする\n「受け付けました」または "ok":true が返れば完了です。送る前に内容を私に確認し、終わったら「タスクに入れました」とだけ返事してください。';
+ $('mtx').textContent='私が仕事のタスクや、社長・ほかの人からの依頼を話したら、会社のタスク受付に登録してください（'+d.name+'の受付です）。\n登録のしかた（どちらか）：\n1. 次のURLの最後に、内容（いつ・誰が・何を、が分かる文）をURLエンコードしてつなげて開く（GET）\n'+API+'?u='+u+'&t=\n2. 同じURL（?より前）へ、本文 {"fn":"send","args":["'+u+'","内容"]} を Content-Type: text/plain でPOSTする\n「受け付けました」または "ok":true が返れば完了です。\n私が「〇〇終わった」「〇〇完了にして」と言ったら、内容の先頭に「完了：」を付けて同じ方法で送ってください（例：完了：佐川ADの見積もり確認）。新しいタスクとしては送らないでください。\n送る前に内容を私に確認し、終わったら「タスクに入れました」（完了報告のときは「完了報告しました」）とだけ返事してください。';
  const L=d.items||[];
- $('list').innerHTML=L.length?L.map(x=>{const closed=x.st==='対応済み'||x.st==='取消';
-  const when=x.date?(x.date.slice(5).replace(/^0/,'').replace('/0','/')+(x.time?' '+x.time:'')):'日付なし';
-  return `<div class="card${closed?' closed':''}"><div class="t">${esc(x.title||x.text)}</div><div class="info"><span>${esc(when)}</span>${x.to?`<span>担当：${esc(x.to)}</span>`:''}<span class="st">${esc(x.st||'未対応')}</span><span>登録 ${esc(String(x.at).slice(5))}</span>${!closed&&x.row?`<button class="btn sm warn" data-row="${x.row}">取消</button>`:''}</div></div>`}).join(''):'<div class="sub">まだありません</div>';
+ $('asg').innerHTML=(d.assigned||[]).length?d.assigned.map(card).join(''):'<div class="sub">ありません</div>';
+ $('list').innerHTML=L.length?L.map(x=>card(x,true)).join(''):'<div class="sub">まだありません</div>';
 }
 function load(){if(!u){$('list').innerHTML='<div class="msg ng">自分専用のURLで開いてください</div>';$('go').disabled=true;return}
  call('me',[u]).then(draw).catch(e=>{$('list').innerHTML='';msg(e.message,false);$('go').disabled=true})}
 $('go').onclick=()=>{const t=$('tx').value.trim();if(!t){msg('内容を書いてください',false);return}
  $('go').disabled=true;msg('送っています…',true);
- call('send',[u,t]).then(d=>{$('tx').value='';msg('受け付けました。カレンダーに入りました（AI秘書が日付・担当を整えます）',true);draw(d)})
+ const rep=/^\s*(?:[【\[(（]\s*(完了|終了|終わった|終わりました|済み|済んだ)\s*[】\])）]|(完了|終了|終わった|終わりました|済み|済んだ)\s*[：:、,\s])/.test(t);
+ call('send',[u,t]).then(d=>{$('tx').value='';msg(rep?'完了報告を受け付けました（AI秘書が該当のタスクを完了にします）':'受け付けました。カレンダーに入りました（AI秘書が日付・担当を整えます）',true);draw(d)})
  .catch(e=>msg(e.message+'（電波のよいところでもう一度押してください）',false)).finally(()=>{$('go').disabled=false})};
-$('list').onclick=e=>{const b=e.target.closest('[data-row]');if(!b)return;b.disabled=true;
+function onDone(e){const b=e.target.closest('[data-done]');if(!b)return false;b.disabled=true;
+ call('doneMine',[u,Number(b.dataset.done)]).then(d=>{msg('完了にしました',true);draw(d)}).catch(e=>{msg(e.message,false);b.disabled=false});return true}
+$('asg').onclick=onDone;
+$('list').onclick=e=>{if(onDone(e))return;const b=e.target.closest('[data-row]');if(!b)return;b.disabled=true;
  call('cancelMine',[u,Number(b.dataset.row)]).then(d=>{msg('取り消しました',true);draw(d)}).catch(e=>{msg(e.message,false);b.disabled=false})};
 $('cp').onclick=()=>{navigator.clipboard.writeText($('mtx').textContent).then(()=>{$('cp').textContent='コピーしました'},()=>{})};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&u)load()});
