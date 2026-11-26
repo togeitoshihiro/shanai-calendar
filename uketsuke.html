@@ -48,7 +48,7 @@ function msg(t,ok){const m=$('msg');m.textContent=t;m.className='msg '+(ok?'ok':
 function draw(d){
  document.title=d.name+'のタスク受付';$('ttl').textContent=d.name+'のタスク受付';
  $('cal').href=d.cal;$('cal').hidden=false;
- $('mtx').textContent='私が仕事のタスクや、社長・ほかの人からの依頼を話したら、会社のタスク受付に登録してください。\n登録のしかた：次のURLの最後に、内容（いつ・誰が・何を、が分かる文）をURLエンコードしてつなげて開く。\n'+API+'?u='+u+'&t=\n開いた画面に「受け付けました」と出たら完了です。終わったら「タスクに入れました」とだけ返事してください。';
+ $('mtx').textContent='私が仕事のタスクや、社長・ほかの人からの依頼を話したら、会社のタスク受付に登録してください（'+d.name+'の受付です）。\n登録のしかた（どちらか）：\n1. 次のURLの最後に、内容（いつ・誰が・何を、が分かる文）をURLエンコードしてつなげて開く（GET）\n'+API+'?u='+u+'&t=\n2. 同じURL（?より前）へ、本文 {"fn":"send","args":["'+u+'","内容"]} を Content-Type: text/plain でPOSTする\n「受け付けました」または "ok":true が返れば完了です。送る前に内容を私に確認し、終わったら「タスクに入れました」とだけ返事してください。';
  const L=d.items||[];
  $('list').innerHTML=L.length?L.map(x=>{const closed=x.st==='対応済み'||x.st==='取消';
   const when=x.date?(x.date.slice(5).replace(/^0/,'').replace('/0','/')+(x.time?' '+x.time:'')):'日付なし';
