@@ -199,7 +199,7 @@ function drawList(){const L=IT.filter(mine),g={late:[],today:[],tom:[],week:[],l
  $('list').innerHTML=h}
 // ===== カレンダー =====
 // 日ごとの予定（取消は除く。AIオフィスの埋め込みでは完了も除く。対応中を上、時間の早い順）
-function byDay(){const emb=document.documentElement.classList.contains('embed');const by={};IT.filter(mine).forEach(x=>{if(!x.date||x.cancel||(emb&&x.closed))return; // AIオフィスの埋め込みでは完了も出さない
+function byDay(){const emb=document.documentElement.classList.contains('embed');const by={};IT.filter(mine).forEach(x=>{if(!x.date||x.cancel||x.closed)return; // 完了はカレンダーに出さない（2026-11-26 広瀬さん。埋め込み・通常画面とも）
 const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const k=d.toDateString();(by[k]=by[k]||[]).push(x)}});
  Object.values(by).forEach(a=>a.sort((p,q)=>(p.closed-q.closed)||(tkey(p.time)-tkey(q.time))));return by}
 // 週表示：日曜〜土曜の7日を並べ、その日の予定を全部（省略せずに）出す
