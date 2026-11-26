@@ -198,8 +198,9 @@ function drawList(){const L=IT.filter(mine),g={late:[],today:[],tom:[],week:[],l
  if(g.old.length)h+=`<details><summary>2週間以上前に登録された日付なしのやること（${g.old.length}件）— 終わっていれば「完了」に</summary>${g.old.map(card).join('')}</details>`;
  $('list').innerHTML=h}
 // ===== カレンダー =====
-// 日ごとの予定（取消は除く。対応中を上、時間の早い順）
-function byDay(){const by={};IT.filter(mine).forEach(x=>{if(!x.date||x.cancel)return;const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const k=d.toDateString();(by[k]=by[k]||[]).push(x)}});
+// 日ごとの予定（取消は除く。AIオフィスの埋め込みでは完了も除く。対応中を上、時間の早い順）
+function byDay(){const emb=document.documentElement.classList.contains('embed');const by={};IT.filter(mine).forEach(x=>{if(!x.date||x.cancel||(emb&&x.closed))return; // AIオフィスの埋め込みでは完了も出さない
+const e=last(x);for(let d=new Date(x.date);d<=e;d.setDate(d.getDate()+1)){const k=d.toDateString();(by[k]=by[k]||[]).push(x)}});
  Object.values(by).forEach(a=>a.sort((p,q)=>(p.closed-q.closed)||(tkey(p.time)-tkey(q.time))));return by}
 // 週表示：日曜〜土曜の7日を並べ、その日の予定を全部（省略せずに）出す
 function drawWeek(){const by=byDay(),s0=new Date(calBase.getFullYear(),calBase.getMonth(),calBase.getDate()-calBase.getDay()),s6=new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+6);
